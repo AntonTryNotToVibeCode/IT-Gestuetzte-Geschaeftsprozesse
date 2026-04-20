@@ -7,11 +7,11 @@
 <style>
 :root {
   --bg:#0b1020; --bg2:#0d1430; --panel:#121933; --panel2:#1a2345; --text:#edf2ff; --muted:#aeb8d4;
-  --accent:#7aa2ff; --good:#27c281; --border:#2b376b;
+  --accent:#7aa2ff; --good:#27c281; --bad:#ff6b6b; --border:#2b376b;
 }
 body.light {
   --bg:#f5f7fb; --bg2:#e9eef9; --panel:#ffffff; --panel2:#eef2fb; --text:#182033; --muted:#5f6b85;
-  --accent:#4b74ff; --good:#1f9d68; --border:#d8dfef;
+  --accent:#4b74ff; --good:#1f9d68; --bad:#d94b4b; --border:#d8dfef;
 }
 * { box-sizing:border-box; }
 body {
@@ -39,6 +39,9 @@ button {
   background:var(--accent); color:white; border:0; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:700;
 }
 button.secondary { background:transparent; color:var(--text); border:1px solid var(--border); }
+button.good { background:var(--good); }
+button.bad { background:var(--bad); }
+button:disabled { opacity:.6; cursor:not-allowed; }
 .pill {
   display:inline-flex; align-items:center; gap:8px;
   padding:6px 10px; border-radius:999px; background:var(--panel2); border:1px solid var(--border); color:var(--muted);
@@ -65,6 +68,8 @@ button.secondary { background:transparent; color:var(--text); border:1px solid v
       <span class="pill">Gesamt: <strong id="totalCount">0</strong></span>
       <span class="pill">Im Stapel: <strong id="stackCount">0</strong></span>
       <span class="pill">Gesehen: <strong id="seenCount">0</strong></span>
+      <span class="pill">Richtig: <strong id="correctCount">0</strong></span>
+      <span class="pill">Falsch: <strong id="wrongCount">0</strong></span>
       <span class="pill">Aktuell: <strong id="positionCount">0 / 0</strong></span>
     </div>
   </div>
@@ -90,6 +95,8 @@ button.secondary { background:transparent; color:var(--text); border:1px solid v
     <div class="answerBox hidden" id="answer"></div>
     <div class="footer" style="margin-top:14px">
       <button id="showBtn" class="hidden">Antwort anzeigen</button>
+      <button id="correctBtn" class="good hidden">Richtig</button>
+      <button id="wrongBtn" class="bad hidden">Falsch</button>
       <button id="nextBtn" class="hidden">Nächste Frage</button>
     </div>
   </div>
@@ -100,11 +107,15 @@ const ALL_QUESTIONS = [{"question": "Welche Aufgaben hat ein OS?", "answer": "�
 
 const STORAGE_THEME = 'studyCardsTheme_v1';
 const STORAGE_SEEN = 'studyCardsSeen_v1';
+const STORAGE_CORRECT = 'studyCardsCorrect_v1';
+const STORAGE_WRONG = 'studyCardsWrong_v1';
 
 const els = {
   totalCount: document.getElementById('totalCount'),
   stackCount: document.getElementById('stackCount'),
   seenCount: document.getElementById('seenCount'),
+  correctCount: document.getElementById('correctCount'),
+  wrongCount: document.getElementById('wrongCount'),
   positionCount: document.getElementById('positionCount'),
   search: document.getElementById('search'),
   limit: document.getElementById('limit'),
@@ -118,6 +129,8 @@ const els = {
   question: document.getElementById('question'),
   answer: document.getElementById('answer'),
   showBtn: document.getElementById('showBtn'),
+  correctBtn: document.getElementById('correctBtn'),
+  wrongBtn: document.getElementById('wrongBtn'),
   nextBtn: document.getElementById('nextBtn')
 };
 
@@ -125,6 +138,9 @@ let stack = [];
 let current = null;
 let currentIndex = 0;
 let seen = new Set();
+let correct = 0;
+let wrong = 0;
+let currentMarked = false;
 
 function loadSeen() {
   try {
@@ -137,6 +153,16 @@ function loadSeen() {
 
 function saveSeen() {
   localStorage.setItem(STORAGE_SEEN, JSON.stringify(Array.from(seen)));
+}
+
+function loadCounters() {
+  correct = Number(localStorage.getItem(STORAGE_CORRECT) || '0');
+  wrong = Number(localStorage.getItem(STORAGE_WRONG) || '0');
+}
+
+function saveCounters() {
+  localStorage.setItem(STORAGE_CORRECT, String(correct));
+  localStorage.setItem(STORAGE_WRONG, String(wrong));
 }
 
 function qKey(item) {
@@ -162,6 +188,8 @@ function updateStats() {
   els.totalCount.textContent = ALL_QUESTIONS.length;
   els.stackCount.textContent = stack.length;
   els.seenCount.textContent = seen.size;
+  els.correctCount.textContent = correct;
+  els.wrongCount.textContent = wrong;
   els.positionCount.textContent = (stack.length || current)
     ? `${Math.min(currentIndex, Math.max(currentIndex, 1))} / ${(stack.length + currentIndex)}`
     : '0 / 0';
@@ -203,6 +231,8 @@ function buildStack() {
     els.answer.textContent = '';
     els.answer.classList.add('hidden');
     els.showBtn.classList.add('hidden');
+    els.correctBtn.classList.add('hidden');
+    els.wrongBtn.classList.add('hidden');
     els.nextBtn.classList.add('hidden');
     updateStats();
     return;
@@ -227,8 +257,31 @@ function renderQuestion() {
   els.answer.textContent = formatAnswer(current.answer);
   els.answer.classList.add('hidden');
   els.showBtn.classList.remove('hidden');
+  currentMarked = false;
+  els.correctBtn.classList.add('hidden');
+  els.wrongBtn.classList.add('hidden');
   els.nextBtn.classList.add('hidden');
+  els.correctBtn.disabled = false;
+  els.wrongBtn.disabled = false;
   updateStats();
+}
+
+function markAnswer(isCorrect) {
+  if (!current || currentMarked === true) return;
+  currentMarked = true;
+
+  if (isCorrect) {
+    correct += 1;
+    els.meta.textContent = `Lernkarte ${currentIndex} · als richtig markiert`;
+  } else {
+    wrong += 1;
+    els.meta.textContent = `Lernkarte ${currentIndex} · als falsch markiert`;
+  }
+
+  saveCounters();
+  updateStats();
+  els.correctBtn.disabled = true;
+  els.wrongBtn.disabled = true;
 }
 
 function nextQuestion() {
@@ -239,6 +292,8 @@ function nextQuestion() {
     els.answer.textContent = '';
     els.answer.classList.add('hidden');
     els.showBtn.classList.add('hidden');
+    els.correctBtn.classList.add('hidden');
+    els.wrongBtn.classList.add('hidden');
     els.nextBtn.classList.add('hidden');
     updateStats();
     return;
@@ -257,8 +312,12 @@ els.showBtn.addEventListener('click', () => {
   if (!current) return;
   els.answer.classList.remove('hidden');
   els.showBtn.classList.add('hidden');
+  els.correctBtn.classList.remove('hidden');
+  els.wrongBtn.classList.remove('hidden');
   els.nextBtn.classList.remove('hidden');
 });
+els.correctBtn.addEventListener('click', () => markAnswer(true));
+els.wrongBtn.addEventListener('click', () => markAnswer(false));
 els.nextBtn.addEventListener('click', nextQuestion);
 els.themeBtn.addEventListener('click', () => {
   const next = document.body.classList.contains('light') ? 'dark' : 'light';
@@ -266,12 +325,17 @@ els.themeBtn.addEventListener('click', () => {
 });
 els.resetProgressBtn.addEventListener('click', () => {
   localStorage.removeItem(STORAGE_SEEN);
+  localStorage.removeItem(STORAGE_CORRECT);
+  localStorage.removeItem(STORAGE_WRONG);
   seen = new Set();
+  correct = 0;
+  wrong = 0;
   updateStats();
-  alert('Gespeicherter Fortschritt wurde zurückgesetzt.');
+  alert('Gespeicherter Fortschritt sowie Richtig/Falsch-Zähler wurden zurückgesetzt.');
 });
 
 loadSeen();
+loadCounters();
 applyTheme(localStorage.getItem(STORAGE_THEME) || 'dark');
 els.totalCount.textContent = ALL_QUESTIONS.length;
 updateStats();
