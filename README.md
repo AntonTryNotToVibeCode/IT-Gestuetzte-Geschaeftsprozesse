@@ -1,2 +1,2 @@
-# IT-Gest-tzte-GEsch-ftsprozesse
+# IT-Gestuetzte-Geschaeftsprozesse
 /
