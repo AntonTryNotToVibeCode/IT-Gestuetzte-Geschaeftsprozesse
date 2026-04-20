@@ -211,11 +211,19 @@ function buildStack() {
   nextQuestion();
 }
 
+  function formatAnswer(text) {
+  return text
+    .replace(/\s–\s/g, '\n– ')
+    .replace(/\.\s([A-ZÄÖÜ][A-Za-zÄÖÜäöüß0-9\-\/() ]{2,40}:)/g, '.\n$1')
+    .replace(/:\s–\s/g, ':\n– ')
+    .trim();
+}
+
 function renderQuestion() {
   if (!current) return;
   els.meta.textContent = `Lernkarte ${currentIndex}`;
   els.question.textContent = current.question;
-  els.answer.textContent = current.answer;
+  els.answer.textContent = formatAnswer(current.answer);
   els.answer.classList.add('hidden');
   els.showBtn.classList.remove('hidden');
   els.nextBtn.classList.add('hidden');
