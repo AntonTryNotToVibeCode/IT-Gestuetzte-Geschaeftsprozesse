@@ -411,13 +411,6 @@ function nextQuestion() {
   renderQuestion();
 }
 
-  current = stack.shift();
-  currentIndex += 1;
-  seen.add(qKey(current));
-  saveSeen();
-  renderQuestion();
-}
-
 els.startBtn.addEventListener('click', buildStack);
 els.restartBtn.addEventListener('click', buildStack);
 els.showBtn.addEventListener('click', () => {
